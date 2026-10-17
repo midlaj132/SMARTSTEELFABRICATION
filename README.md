@@ -94,16 +94,18 @@ before the first deployment:
 2. Create a PostgreSQL database using a Vercel Marketplace provider such as
    Neon. Add its pooled connection string to the Vercel project environment as
    `DATABASE_URL` (or `POSTGRES_URL`).
-3. Create a **public** Vercel Blob store and connect it to this project. Add its
-   read-write token as `BLOB_READ_WRITE_TOKEN`. Uploaded photos and videos are
-   public portfolio media.
+3. Create a **public** Vercel Blob store and connect it to this project. A
+   connected store supplies Blob credentials automatically. If using a
+   read-write token instead, set `BLOB_READ_WRITE_TOKEN`. Uploaded photos and
+   videos are public portfolio media.
 4. In **Settings → Environment Variables**, add these for Production (and
    Preview if needed):
    - `FLASK_SECRET_KEY` — a long random secret used to sign owner sessions.
    - `ADMIN_USERNAME` — `SMARTSTEEL`.
    - `ADMIN_PASSWORD` — the owner’s password.
    - `DATABASE_URL` — the PostgreSQL connection string from the provider.
-   - `BLOB_READ_WRITE_TOKEN` — the token for the connected Blob store.
+   - Blob credentials — either the connected store's `BLOB_STORE_ID` and
+     `VERCEL_OIDC_TOKEN`, or `BLOB_READ_WRITE_TOKEN`.
 5. Redeploy. The app creates its tables in PostgreSQL on startup. Do not add
    database files, uploads, or secret values to GitHub.
 
