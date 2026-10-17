@@ -1,6 +1,7 @@
 import os
 import mimetypes
 import sqlite3
+import traceback
 import zipfile
 from datetime import datetime
 from functools import wraps
@@ -9,6 +10,7 @@ from uuid import uuid4
 from urllib.parse import urlparse
 
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -458,22 +460,41 @@ def validate_csrf_form():
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder=str(BASE_DIR / 'public' / 'static'),
+        static_url_path='/static',
+    )
     app.config.from_object(Config)
-    if os.environ.get('VERCEL'):
-        required_environment = {
-            'DATABASE_URL': Config.DATABASE_URL,
-            'Vercel Blob credentials': Config.BLOB_STORAGE_ENABLED,
-            'FLASK_SECRET_KEY': os.environ.get('FLASK_SECRET_KEY'),
-            'ADMIN_PASSWORD': os.environ.get('ADMIN_PASSWORD'),
-        }
-        missing = [name for name, value in required_environment.items() if not value]
-        if missing:
-            raise RuntimeError(
-                'Missing required Vercel environment variables: ' + ', '.join(missing)
-            )
-    init_db()
-    ensure_admin_account()
+    startup_phase = 'Vercel configuration'
+    try:
+        if os.environ.get('VERCEL'):
+            required_environment = {
+                'DATABASE_URL or POSTGRES_URL': Config.DATABASE_URL,
+                'Vercel Blob credentials': Config.BLOB_STORAGE_ENABLED,
+                'FLASK_SECRET_KEY': os.environ.get('FLASK_SECRET_KEY'),
+                'ADMIN_PASSWORD': os.environ.get('ADMIN_PASSWORD'),
+            }
+            missing = [name for name, value in required_environment.items() if not value]
+            if missing:
+                app.logger.error(
+                    'Vercel startup is missing configuration: %s',
+                    ', '.join(missing),
+                )
+                raise RuntimeError(
+                    'Missing required Vercel environment variables: ' + ', '.join(missing)
+                )
+        startup_phase = 'database and administrator initialization'
+        init_db()
+        ensure_admin_account()
+    except Exception as error:
+        app.logger.error(
+            'Application startup failed during %s (%s)\n%s',
+            startup_phase,
+            type(error).__name__,
+            ''.join(traceback.format_tb(error.__traceback__)),
+        )
+        raise
     app.jinja_env.globals['category_choices'] = CATEGORY_CHOICES
     app.jinja_env.globals['status_choices'] = STATUS_CHOICES
     app.jinja_env.globals['media_categories'] = MEDIA_CATEGORIES
@@ -738,7 +759,7 @@ def create_app():
         if sort == 'oldest':
             sql += ' ORDER BY p.created_at ASC'
         elif sort == 'status':
-            sql += ' ORDER BY CASE p.status WHEN "New" THEN 1 WHEN "Pending" THEN 2 WHEN "In Progress" THEN 3 WHEN "Completed" THEN 4 WHEN "On Hold" THEN 5 ELSE 6 END ASC'
+            sql += " ORDER BY CASE p.status WHEN 'New' THEN 1 WHEN 'Pending' THEN 2 WHEN 'In Progress' THEN 3 WHEN 'Completed' THEN 4 WHEN 'On Hold' THEN 5 ELSE 6 END ASC"
         else:
             sql += ' ORDER BY p.created_at DESC'
         rows = conn.execute(sql, params).fetchall()
@@ -1151,6 +1172,18 @@ def create_app():
     @app.errorhandler(413)
     def upload_too_large(error):
         return render_template('413.html', max_upload_size_mb=Config.MAX_UPLOAD_SIZE_MB), 413
+
+    @app.errorhandler(Exception)
+    def internal_error(error):
+        if isinstance(error, HTTPException):
+            return error
+        app.logger.error(
+            'Request failed at endpoint %s (%s)\n%s',
+            request.endpoint or 'unknown',
+            type(error).__name__,
+            ''.join(traceback.format_tb(error.__traceback__)),
+        )
+        return 'Internal server error', 500
 
     @app.context_processor
     def inject_nav():

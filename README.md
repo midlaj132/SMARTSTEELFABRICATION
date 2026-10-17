@@ -22,7 +22,7 @@ A Flask website and private admin system for SMARTSTEELPAZHAYANNUR welding and f
 - `database/` — SQLite files
 - `instance/` — runtime/admin setup files and backups
 - `uploads/` — uploaded project media
-- `static/` — CSS/JS assets
+- `public/static/` — CSS, JavaScript, and images (served as Vercel public assets)
 - `templates/` — Flask templates
 
 ## Quick start
@@ -106,25 +106,42 @@ Vercel, this app uses hosted PostgreSQL and Vercel Blob instead; set up both
 before the first deployment:
 
 1. In Vercel, import `midlaj132/SMARTSTEELFABRICATION` and leave the project
-   root at `/`. Vercel detects Flask from `requirements.txt`; no custom build
-   command or output directory is needed.
+   root at `/`. `app.py` exports the supported Flask `app` entry point.
+   Vercel installs `requirements.txt`; no custom build command or
+   `vercel.json` is needed. Static assets are under `public/static/` and are
+   requested at `/static/...`.
 2. Create a PostgreSQL database using a Vercel Marketplace provider such as
    Neon. Add its pooled connection string to the Vercel project environment as
    `DATABASE_URL` (or `POSTGRES_URL`).
-3. Create a **public** Vercel Blob store and connect it to this project. A
-   connected store supplies Blob credentials automatically. If using a
-   read-write token instead, set `BLOB_READ_WRITE_TOKEN`. Uploaded photos and
-   videos are public portfolio media.
+3. Create a **public** Vercel Blob store and connect it to this project for
+   Production (and Preview/Development if you use those environments). A
+   connected store supplies `BLOB_STORE_ID` and `VERCEL_OIDC_TOKEN`
+   automatically. Alternatively, create a read-write token and set
+   `BLOB_READ_WRITE_TOKEN`. Uploaded photos and videos are public portfolio
+   media.
 4. In **Settings → Environment Variables**, add these for Production (and
    Preview if needed):
    - `FLASK_SECRET_KEY` — a long random secret used to sign owner sessions.
    - `ADMIN_USERNAME` — `SMARTSTEEL`.
    - `ADMIN_PASSWORD` — the owner’s password.
    - `DATABASE_URL` — the PostgreSQL connection string from the provider.
-   - Blob credentials — either the connected store's `BLOB_STORE_ID` and
-     `VERCEL_OIDC_TOKEN`, or `BLOB_READ_WRITE_TOKEN`.
+   - Blob credentials — connect the store to the project to provide
+     `BLOB_STORE_ID` and `VERCEL_OIDC_TOKEN`, or add `BLOB_READ_WRITE_TOKEN`.
 5. Redeploy. The app creates its tables in PostgreSQL on startup. Do not add
    database files, uploads, or secret values to GitHub.
+
+Keep `DATABASE_URL` pointed at the same PostgreSQL database that already holds
+your live projects and customers. The app does not drop tables or migrate local
+SQLite contents automatically. Before changing the database provider or
+connection string, export a backup and arrange a migration; otherwise the site
+may appear empty because it is connected to a different database.
+
+If a deployment reports `500 FUNCTION_INVOCATION_FAILED`, open the failed
+deployment's **Functions → Logs** in Vercel. Startup logs identify missing
+environment-variable names or the failed initialization phase without logging
+secret values or customer records. Confirm the variables above are enabled for
+the same environment (Production, Preview, or Development) as the deployment,
+then redeploy.
 
 Vercel Functions accept request bodies up to 4.5 MB. To keep uploads below that
 platform limit, this app limits uploads to 4 MB total on Vercel (the limit can
