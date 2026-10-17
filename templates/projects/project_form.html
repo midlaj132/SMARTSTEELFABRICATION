@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}{% if project %}Edit Project{% else %}New Project{% endif %} | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">{% if project %}Edit Project{% else %}Add New Project{% endif %}</h2>
+        <p class="text-muted mb-0">Track project details, payment, and work status</p>
+    </div>
+</div>
+
+<div class="card p-4">
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Project Title</label>
+                <input type="text" name="title" value="{{ project.title if project else '' }}" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Customer / Owner Name</label>
+                <input type="text" name="customer_name" value="{{ project.customer_name if project else '' }}" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Customer Phone</label>
+                <input type="text" name="customer_phone" value="{{ project.customer_phone if project else '' }}" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Customer Address / Location</label>
+                <input type="text" name="customer_location" value="{{ project.customer_location if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Customer Notes</label>
+                <input type="text" name="customer_notes" value="{{ project.customer_notes if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Alternative Phone</label>
+                <input type="text" name="alt_phone" value="{{ project.customer_alt_phone if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Work Category</label>
+                <select name="category" class="form-select" required>
+                    <option value="">Select category</option>
+                    {% for choice in categories %}
+                    <option value="{{ choice }}" {% if project and project.category == choice %}selected{% endif %}>{{ choice }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Project Location</label>
+                <input type="text" name="location" value="{{ project.location if project else '' }}" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    {% for choice in status_choices %}
+                    <option value="{{ choice }}" {% if project and project.status == choice %}selected{% elif not project and choice == 'New' %}selected{% endif %}>{{ choice }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Project Start Date</label>
+                <input type="date" name="start_date" value="{{ project.start_date if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Expected Completion</label>
+                <input type="date" name="expected_completion" value="{{ project.expected_completion if project else '' }}" class="form-control">
+            </div>
+            <div class="col-12">
+                <label class="form-label">Project Description</label>
+                <textarea name="description" class="form-control" rows="4">{{ project.description if project else '' }}</textarea>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Estimated Price</label>
+                <input type="number" step="0.01" name="estimated_price" value="{{ project.estimated_price if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Advance Amount</label>
+                <input type="number" step="0.01" name="advance_amount" value="{{ project.advance_amount if project else '' }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Balance Amount</label>
+                <input type="number" step="0.01" value="{{ project.balance_amount if project else '' }}" class="form-control" readonly>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Internal Notes</label>
+                <textarea name="internal_notes" class="form-control" rows="3">{{ project.internal_notes if project else '' }}</textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Add Work Photos and Videos</label>
+                <input type="file" name="media_files" class="form-control" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.webm">
+                <div class="form-text">Choose multiple JPG, PNG, WEBP, MP4, or WEBM files. Combined upload limit: {{ config.MAX_UPLOAD_SIZE_MB }} MB.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Photo / Video Stage</label>
+                <select name="media_category" class="form-select">
+                    {% for option in media_categories %}
+                    <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2 justify-content-end pt-3">
+                <a href="{{ url_for('projects') }}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Project</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

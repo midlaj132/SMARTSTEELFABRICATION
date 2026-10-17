@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Upload Too Large | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="empty-state">
+    <h2>That upload is too large</h2>
+    <p>Choose smaller files or upload fewer files at once. The maximum combined upload size is {{ max_upload_size_mb }} MB.</p>
+    {% if 'logged_in' in session %}
+    <a class="btn btn-primary" href="{{ request.referrer or url_for('dashboard') }}">Go back and try again</a>
+    {% else %}
+    <a class="btn btn-primary" href="{{ url_for('gallery') }}">Back to the gallery</a>
+    {% endif %}
+</div>
+{% endblock %}

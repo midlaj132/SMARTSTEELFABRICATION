@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Upload Portfolio Photos | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+            <div>
+                <h2 class="mb-1">Upload Portfolio Photos</h2>
+                <p class="text-muted mb-0">Add photos for customers to browse. No project or customer details are needed.</p>
+            </div>
+            <a href="{{ url_for('admin_upload') }}" class="btn btn-outline-secondary">Upload to a Project</a>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="bi bi-shield-check me-2"></i>
+            These photos are saved directly to your public work gallery with their category only. No customer information is collected.
+        </div>
+
+        <div class="card p-4 p-md-5">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" for="work_category">Work category</label>
+                        <select id="work_category" name="work_category" class="form-select" required>
+                            <option value="">Choose a category</option>
+                            {% for category in category_choices %}
+                            <option value="{{ category }}" {% if selected_work_category == category %}selected{% endif %}>{{ category }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" for="media_category">Photo stage</label>
+                        <select id="media_category" name="media_category" class="form-select" required>
+                            {% for option in media_categories %}
+                            <option value="{{ option }}" {% if selected_category == option %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-label fw-semibold">Choose photos</div>
+                        <label for="media_files" class="btn btn-outline-primary btn-lg w-100 text-start" tabindex="0">
+                            <i class="bi bi-images me-2"></i>Choose photos from your phone gallery
+                        </label>
+                        <input id="media_files" type="file" name="media_files" class="visually-hidden" multiple required accept="image/*" aria-describedby="media-files-help selected-files">
+                        <div id="media-files-help" class="form-text">Select one or more JPG, JPEG, PNG, or WEBP photos. Combined upload limit: {{ config.MAX_UPLOAD_SIZE_MB }} MB.</div>
+                    </div>
+                    <div class="col-12">
+                        <div id="selected-files" class="selected-files small text-muted" aria-live="polite">No files selected yet.</div>
+                    </div>
+                    <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
+                        <a href="{{ url_for('gallery') }}" class="btn btn-link text-decoration-none">View public gallery</a>
+                        <button type="submit" class="btn btn-primary btn-lg px-4"><i class="bi bi-cloud-arrow-up me-2"></i>Add Photos to Gallery</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const mediaInput = document.querySelector('#media_files');
+        const filePickerButton = document.querySelector('label[for="media_files"]');
+        if (mediaInput && filePickerButton) {
+            filePickerButton.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    mediaInput.click();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

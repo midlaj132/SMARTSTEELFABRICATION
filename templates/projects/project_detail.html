@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.title }} | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">{{ project.title }}</h2>
+        <p class="text-muted mb-0">{{ project.project_ref }} • {{ project.category }}</p>
+    </div>
+    {% if is_admin %}
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('project_edit', project_id=project.id) }}" class="btn btn-outline-secondary">Edit</a>
+        <form method="post" action="{{ url_for('delete_project', project_id=project.id) }}" onsubmit="return confirm('Delete this project permanently?');">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <button type="submit" class="btn btn-outline-danger">Delete</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="{% if is_admin %}col-lg-8{% else %}col-12{% endif %}">
+        <div class="card p-4">
+            <h4 class="mb-3">Project Details</h4>
+            <div class="row g-3">
+                <div class="col-md-6"><strong>Status:</strong> {{ project.status }}</div>
+                <div class="col-12"><strong>Description:</strong> {{ project.description or 'No description provided.' }}</div>
+                {% if is_admin %}
+                <div class="col-md-6"><strong>Customer:</strong> {{ project.customer_name }}</div>
+                <div class="col-md-6"><strong>Phone:</strong> <a href="tel:{{ project.customer_phone }}">{{ project.customer_phone }}</a> | <a href="https://wa.me/{{ project.customer_phone|replace(' ', '') }}" target="_blank">WhatsApp</a></div>
+                <div class="col-md-6"><strong>Location:</strong> {{ project.location }}</div>
+                <div class="col-md-6"><strong>Start Date:</strong> {{ project.start_date or 'N/A' }}</div>
+                <div class="col-md-6"><strong>Expected Completion:</strong> {{ project.expected_completion or 'N/A' }}</div>
+                <div class="col-md-4"><strong>Estimated:</strong> {{ '₹%.2f'|format(project.estimated_price or 0) }}</div>
+                <div class="col-md-4"><strong>Advance:</strong> {{ '₹%.2f'|format(project.advance_amount or 0) }}</div>
+                <div class="col-md-4"><strong>Balance:</strong> {{ '₹%.2f'|format(project.balance_amount or 0) }}</div>
+                <div class="col-12"><strong>Internal Notes:</strong> {{ project.internal_notes or 'No internal notes.' }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if is_admin %}
+    <div class="col-lg-4">
+        <div class="card p-4">
+            <h4 class="mb-3">Related Projects</h4>
+            {% if customer_projects %}
+            <ul class="list-group list-group-flush">
+                {% for related in customer_projects %}
+                <li class="list-group-item px-0">
+                    <a href="{{ url_for('project_detail', project_id=related.id) }}" class="text-decoration-none text-dark d-block">
+                        {{ related.title }} <small class="d-block text-muted">{{ related.status }}</small>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="text-muted">No related projects.</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if is_admin %}
+<div class="card p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Upload Additional Media</h4>
+    </div>
+    <form method="post" action="{{ url_for('upload_project_media', project_id=project.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Media Category</label>
+                <select name="media_category" class="form-select">
+                    {% for option in media_categories %}
+                    <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Select Files</label>
+                <input type="file" name="media_files" class="form-control" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.webm">
+                <div class="form-text">JPG, PNG, WEBP, MP4, or WEBM. Combined upload limit: {{ config.MAX_UPLOAD_SIZE_MB }} MB.</div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Upload</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<div class="card p-4">
+    <h4 class="mb-3">Media Gallery</h4>
+    {% if media %}
+    <div class="row g-4">
+        {% for item in media %}
+        <div class="col-lg-3 col-md-4 col-sm-6">
+            <div class="gallery-item">
+                {% if item.media_type == 'image' %}
+                    <a href="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}" target="_blank" rel="noopener">
+                        <img src="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}" alt="{{ project.category }} project photo">
+                    </a>
+                {% else %}
+                    <video controls src="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}"></video>
+                {% endif %}
+                <div class="p-3">
+                    <div class="small text-muted mb-2">{{ item.category }}</div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        {% if is_admin %}<span class="small text-muted">{{ item.original_name }}</span>{% endif %}
+                        {% if is_admin %}
+                        <form method="post" action="{{ url_for('delete_media', media_id=item.id) }}" onsubmit="return confirm('Delete this media file?');">
+                            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                            <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No media uploaded for this project yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

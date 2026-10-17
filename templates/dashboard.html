@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}SMARTSTEELPAZHAYANNUR | Welding Fabrication{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">SMARTSTEELPAZHAYANNUR</h2>
+        <p class="text-muted mb-0">Welding, steel fabrication, and installation</p>
+    </div>
+    {% if 'logged_in' in session %}
+    <a href="{{ url_for('project_new') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Add New Project</a>
+    {% endif %}
+</div>
+
+<section class="home-hero mb-4">
+    <div class="row align-items-center g-0">
+        <div class="col-lg-5 p-4 p-lg-5">
+            <span class="hero-kicker">WELDING · STEEL · CRAFTSMANSHIP</span>
+            <h1 class="display-5 fw-bold text-white mt-3">Built strong.<br>Made to last.</h1>
+            <p class="text-white-50 mt-3">Custom steel staircases, handrails, gates, and fabrication work from SMARTSTEELPAZHAYANNUR.</p>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <a href="{{ url_for('projects') }}" class="btn btn-primary">Explore Our Work</a>
+                <a href="{{ url_for('gallery') }}" class="btn btn-outline-light">View Gallery</a>
+                <a href="{{ url_for('upload_showcase') }}" class="btn btn-warning"><i class="bi bi-images me-1"></i>Owner: Add Photos (No Customer Details)</a>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="hero-photo-wrap">
+                {% if featured_media %}
+                <img class="hero-photo" src="{{ url_for('uploaded_file', filename=featured_media.file_path|replace('uploads/', '', 1)) }}" alt="{{ featured_media.project_category }} by SMARTSTEELPAZHAYANNUR">
+                <span class="hero-photo-credit">Featured work: {{ featured_media.project_category }}</span>
+                {% else %}
+                <img class="hero-photo" src="{{ url_for('static', filename='images/featured-steel-staircase.jpg') }}" alt="Steel staircase inspiration">
+                <a class="hero-photo-credit" href="https://unsplash.com/photos/white-metal-staircase-on-gray-concrete-floor-icgLeBd1XuE" target="_blank" rel="noopener noreferrer">Steel staircase inspiration · Photo by Parrish Freeman / Unsplash</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="craft-showcase mb-5">
+    <div class="row g-0 align-items-stretch">
+        <div class="col-lg-7">
+            <img class="craft-showcase-photo" src="{{ url_for('static', filename='images/featured-steel-welding.jpg') }}" alt="Welder fabricating a steel joint with sparks">
+        </div>
+        <div class="col-lg-5 d-flex align-items-center">
+            <div class="craft-showcase-copy p-4 p-lg-5">
+                <span class="hero-kicker">PRECISION IN EVERY WELD</span>
+                <h2 class="text-white mt-3">Steelwork made with care.</h2>
+                <p class="text-white-50">From custom staircases and handrails to gates and sheds, see the work we build for our customers.</p>
+                <a href="{{ url_for('projects') }}" class="btn btn-primary mt-2">Discover Our Projects</a>
+                <a class="d-block small text-white-50 mt-4" href="https://unsplash.com/photos/man-using-welding-machine-Wiu3w-99tNg" target="_blank" rel="noopener noreferrer">Welding inspiration photo by Christopher Burns / Unsplash</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex justify-content-between align-items-end gap-3 mb-3">
+        <div>
+            <span class="hero-kicker">MADE FOR YOUR SPACE</span>
+            <h2 class="mb-0 mt-2">Explore our steelwork</h2>
+        </div>
+        <a href="{{ url_for('gallery') }}" class="btn btn-outline-primary">See the gallery</a>
+    </div>
+    <div class="row g-3">
+        {% for category in ['Staircase Work', 'Handrail Work', 'Gate and Grill Work', 'Roofing and Shed Work'] %}
+        <div class="col-md-6 col-xl-3">
+            <a class="service-tile text-decoration-none" href="{{ url_for('category_page', category_slug=category|lower|replace(' ', '-')) }}">
+                <span class="service-tile-icon"><i class="bi bi-arrow-up-right"></i></span>
+                <span class="fw-semibold">{{ category }}</span>
+                <span class="small text-muted">Explore projects</span>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if 'logged_in' in session %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><strong>Admin:</strong> Add a project and select its staircase, handrail, gate, or other photos/videos. Uploaded work appears in the public gallery.</span>
+    <a class="btn btn-sm btn-dark" href="{{ url_for('project_new') }}"><i class="bi bi-cloud-arrow-up me-1"></i>Upload Work</a>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Total Projects</div>
+                    <div class="fs-3 fw-bold">{{ totals.projects }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-clipboard-data"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Ongoing</div>
+                    <div class="fs-3 fw-bold">{{ totals.ongoing }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-tools"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Completed</div>
+                    <div class="fs-3 fw-bold">{{ totals.completed }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-check2-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Pending</div>
+                    <div class="fs-3 fw-bold">{{ totals.pending }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Photos & Videos</div>
+                    <div class="fs-3 fw-bold">{{ totals.media }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-images"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Recent Work</h4>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('upload_showcase') }}" class="btn btn-primary btn-sm"><i class="bi bi-images me-1"></i>Add Portfolio Photos</a>
+            <a href="{{ url_for('projects') }}" class="btn btn-outline-primary btn-sm">View All Work</a>
+        </div>
+    </div>
+    {% if recent_projects %}
+    <div class="row g-4">
+        {% for project in recent_projects %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-0 bg-light">
+                <div class="img-card">
+                    {% if project.cover_image %}
+                    <img src="{{ url_for('uploaded_file', filename=project.cover_image|replace('uploads/', '', 1)) }}" alt="{{ project.category }} work">
+                    {% else %}
+                    <div class="empty-state">No project photo yet</div>
+                    {% endif %}
+                </div>
+                <div class="p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">{{ project.title }}</h5>
+                        <span class="badge badge-soft rounded-pill">{{ project.status }}</span>
+                    </div>
+                    <div class="text-muted small mb-2"><strong>Category:</strong> {{ project.category }}</div>
+                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-primary">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state mt-3">
+        <h5>Our work gallery is getting ready.</h5>
+        {% if 'logged_in' in session %}
+        <p>Create your first project, then upload its staircase, handrail, gate, or other work photos and videos.</p>
+        <a href="{{ url_for('project_new') }}" class="btn btn-primary">Create a Project</a>
+        <a href="{{ url_for('admin_upload') }}" class="btn btn-outline-primary">Upload to Existing Project</a>
+        <a href="{{ url_for('upload_showcase') }}" class="btn btn-outline-secondary">Add Photos Without Customer Details</a>
+        {% else %}
+        <p>Please check back soon to see our latest welding and fabrication projects.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

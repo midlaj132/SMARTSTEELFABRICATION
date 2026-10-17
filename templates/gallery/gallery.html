@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Gallery | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Gallery</h2>
+        <p class="text-muted mb-0">Browse all uploaded company work photos and videos</p>
+    </div>
+</div>
+
+<div class="card p-4 mb-4">
+    <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label">Category</label>
+            <select name="category" class="form-select">
+                <option value="All">All</option>
+                {% for choice in category_choices %}
+                <option value="{{ choice }}" {% if category == choice %}selected{% endif %}>{{ choice }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Media Type</label>
+            <select name="media_type" class="form-select">
+                <option value="All">All</option>
+                <option value="image" {% if media_type == 'image' %}selected{% endif %}>Images</option>
+                <option value="video" {% if media_type == 'video' %}selected{% endif %}>Videos</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Work Stage</label>
+            <select name="work_stage" class="form-select">
+                <option value="All">All</option>
+                {% for choice in media_categories %}
+                <option value="{{ choice }}" {% if work_stage == choice %}selected{% endif %}>{{ choice }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Search</label>
+            <input type="text" name="q" value="{{ search }}" class="form-control" placeholder="Project title">
+        </div>
+        <div class="col-12 d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary">Filter Gallery</button>
+        </div>
+    </form>
+</div>
+
+{% if media %}
+<div class="row g-4">
+    {% for item in media %}
+    <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="gallery-item h-100">
+            {% if item.media_type == 'image' %}
+            <a href="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}" target="_blank" rel="noopener">
+                <img src="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}" alt="{{ item.project_category }} project photo">
+            </a>
+            {% else %}
+            <video controls src="{{ url_for('uploaded_file', filename=item.file_path|replace('uploads/', '', 1)) }}"></video>
+            {% endif %}
+            <div class="p-3">
+                <div class="fw-semibold mb-1">{{ item.project_title }}</div>
+                <div class="small text-muted mb-2">{{ item.project_category }}</div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-light text-dark">{{ item.category }}</span>
+                    {% if item.project_id %}
+                    <a href="{{ url_for('project_detail', project_id=item.project_id) }}" class="btn btn-sm btn-outline-primary">Project</a>
+                    {% elif 'logged_in' in session and item.is_showcase %}
+                    <form method="post" action="{{ url_for('delete_showcase_media', media_id=item.id) }}" onsubmit="return confirm('Delete this portfolio photo?');">
+                        <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Delete portfolio photo"><i class="bi bi-trash"></i></button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <h5>No media available.</h5>
+    <p>Upload project photos and videos to populate the gallery.</p>
+</div>
+{% endif %}
+{% endblock %}

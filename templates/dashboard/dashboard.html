@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}SMARTSTEELPAZHAYANNUR | Welding Fabrication{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">SMARTSTEELPAZHAYANNUR</h2>
+        <p class="text-muted mb-0">Overview of active fabrication operations</p>
+    </div>
+    <a href="{{ url_for('project_new') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Add New Project</a>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Total Projects</div>
+                    <div class="fs-3 fw-bold">{{ totals.projects }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-clipboard-data"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Ongoing</div>
+                    <div class="fs-3 fw-bold">{{ totals.ongoing }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-tools"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Completed</div>
+                    <div class="fs-3 fw-bold">{{ totals.completed }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-check2-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Pending</div>
+                    <div class="fs-3 fw-bold">{{ totals.pending }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Customers</div>
+                    <div class="fs-3 fw-bold">{{ totals.customers }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-people"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">Photos & Videos</div>
+                    <div class="fs-3 fw-bold">{{ totals.media }}</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-images"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Recent Projects</h4>
+        <a href="{{ url_for('projects') }}" class="btn btn-outline-primary btn-sm">View All</a>
+    </div>
+    {% if recent_projects %}
+    <div class="row g-4">
+        {% for project in recent_projects %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-0 bg-light">
+                <div class="img-card">
+                    {% set media = project_media if project_media is defined else [] %}
+                    {% set first_media = [] %}
+                    {% for item in media if item.project_id == project.id %}
+                        {% set _ = first_media.append(item) %}
+                    {% endfor %}
+                    {% if first_media %}
+                        {% if first_media[0].media_type == 'image' %}
+                            <img src="{{ url_for('static', filename='') }}{{ first_media[0].file_path|replace('\\', '/') }}" alt="Project image">
+                        {% else %}
+                            <video controls src="{{ url_for('static', filename='') }}{{ first_media[0].file_path|replace('\\', '/') }}"></video>
+                        {% endif %}
+                    {% else %}
+                        <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=900&q=80" alt="Fabrication work preview">
+                    {% endif %}
+                </div>
+                <div class="p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">{{ project.title }}</h5>
+                        <span class="badge badge-soft rounded-pill">{{ project.status }}</span>
+                    </div>
+                    <div class="text-muted small mb-2"><strong>Customer:</strong> {{ project.customer_name }}</div>
+                    <div class="text-muted small mb-2"><strong>Category:</strong> {{ project.category }}</div>
+                    <div class="text-muted small mb-2"><strong>Phone:</strong> <a href="tel:{{ project.customer_phone }}">{{ project.customer_phone }}</a></div>
+                    <a href="{{ url_for('project_detail', project_id=project.id) }}" class="btn btn-sm btn-primary">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state mt-3">
+        <h5>No projects added yet.</h5>
+        <p>Create your first fabrication project to begin tracking work.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
