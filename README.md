@@ -75,10 +75,27 @@ internet.
 
 To let visitors access the public portfolio from anywhere, deploy the app to a
 hosting provider. Running it on a local computer only makes it reachable on
-that computer or its local network. Use a production WSGI server, HTTPS, and a
-persistent disk for the SQLite database and uploaded media. Configure
+that computer or its local network. Use a production WSGI server and HTTPS.
+SQLite and uploaded files need persistent storage, as configured for Render
+below; Vercel instead uses hosted PostgreSQL and Blob storage. Configure
 `FLASK_SECRET_KEY` to a long random secret, and set `ADMIN_USERNAME` and
 `ADMIN_PASSWORD` before the first start.
+
+## Deploy to Render
+
+This repository includes `render.yaml` for a Flask web service. In Render,
+choose **New → Blueprint**, connect
+[this GitHub repository](https://github.com/midlaj132/SMARTSTEELFABRICATION),
+and apply the blueprint. Render will install `requirements.txt`, start the app
+with Gunicorn, generate a secret session key, and ask you to enter
+`ADMIN_PASSWORD`.
+
+The blueprint mounts a persistent disk at `/var/data` for the SQLite database
+and uploaded work. It uses Render's Starter web-service plan because persistent
+disks are not available on the free web-service plan. Keep the disk mounted at
+`/var/data`; otherwise files written by the app will not persist across deploys.
+After the first deploy, open `/healthz`; it should return `{"status":"ok"}`.
+Owner upload remains at `/admin/login`, with username `SMARTSTEEL`.
 
 ## Deploy to Vercel
 

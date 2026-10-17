@@ -17,8 +17,8 @@ class Config:
         BLOB_READ_WRITE_TOKEN
         or (BLOB_STORE_ID and os.environ.get('VERCEL_OIDC_TOKEN'))
     )
-    DATABASE_PATH = os.path.join(BASE_DIR, 'database', 'welding.db')
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(BASE_DIR, 'database', 'welding.db'))
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', os.path.join(BASE_DIR, 'uploads'))
     INSTANCE_FOLDER = os.path.join(BASE_DIR, 'instance')
     ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
     ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm'}

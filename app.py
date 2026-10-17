@@ -83,6 +83,7 @@ def adapt_schema_for_postgres(schema):
         schema.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY')
         .replace('INTEGER', 'BIGINT')
         .replace(' REAL', ' DOUBLE PRECISION')
+        .replace(' COLLATE NOCASE', '')
         .replace(
             "TEXT NOT NULL DEFAULT (datetime('now'))",
             'TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP',
@@ -524,6 +525,13 @@ def create_app():
             abort(404)
         return send_from_directory(UPLOAD_FOLDER, filename)
 
+    @app.route('/healthz')
+    def health_check():
+        conn = get_db_connection()
+        conn.execute('SELECT 1').fetchone()
+        conn.close()
+        return jsonify(status='ok')
+
     @app.route('/')
     @app.route('/dashboard')
     def dashboard():
@@ -715,10 +723,16 @@ def create_app():
             sql += ' AND p.status = ? '
             params.append(status)
         if from_date:
-            sql += ' AND date(p.created_at) >= date(?) '
+            if Config.DATABASE_URL:
+                sql += ' AND p.created_at::date >= ?::date '
+            else:
+                sql += ' AND date(p.created_at) >= date(?) '
             params.append(from_date)
         if to_date:
-            sql += ' AND date(p.created_at) <= date(?) '
+            if Config.DATABASE_URL:
+                sql += ' AND p.created_at::date <= ?::date '
+            else:
+                sql += ' AND date(p.created_at) <= date(?) '
             params.append(to_date)
         sql += ' GROUP BY p.id '
         if sort == 'oldest':
