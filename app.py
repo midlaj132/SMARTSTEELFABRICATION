@@ -1,10 +1,12 @@
 import os
+import mimetypes
 import sqlite3
 import zipfile
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from uuid import uuid4
+from urllib.parse import urlparse
 
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -35,7 +37,30 @@ STATUS_CHOICES = ['New', 'Pending', 'In Progress', 'Completed', 'On Hold']
 MEDIA_CATEGORIES = ['Before Work', 'Work in Progress', 'Completed Work', 'Reference', 'Video', 'Other']
 
 
+class PostgresConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, query, params=()):
+        return self.connection.execute(query.replace('?', '%s'), params)
+
+    def executescript(self, script):
+        for statement in script.split(';'):
+            if statement.strip():
+                self.execute(statement)
+
+    def __getattr__(self, name):
+        return getattr(self.connection, name)
+
+
 def get_db_connection():
+    if Config.DATABASE_URL:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        connection = psycopg.connect(Config.DATABASE_URL, row_factory=dict_row)
+        return PostgresConnection(connection)
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
@@ -43,19 +68,32 @@ def get_db_connection():
 
 
 def ensure_directories():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-    INSTANCE_FOLDER.mkdir(parents=True, exist_ok=True)
-    for category in ['images', 'videos']:
-        (UPLOAD_FOLDER / category).mkdir(exist_ok=True)
+    if not Config.DATABASE_URL:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not Config.BLOB_STORAGE_ENABLED:
+        UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+        for category in ['images', 'videos']:
+            (UPLOAD_FOLDER / category).mkdir(exist_ok=True)
+    if not os.environ.get('VERCEL'):
+        INSTANCE_FOLDER.mkdir(parents=True, exist_ok=True)
+
+
+def adapt_schema_for_postgres(schema):
+    return (
+        schema.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY')
+        .replace('INTEGER', 'BIGINT')
+        .replace(' REAL', ' DOUBLE PRECISION')
+        .replace(
+            "TEXT NOT NULL DEFAULT (datetime('now'))",
+            'TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        )
+    )
 
 
 def init_db():
     ensure_directories()
     conn = get_db_connection()
-    conn.execute('PRAGMA foreign_keys = ON')
-    conn.executescript(
-        '''
+    schema = '''
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -130,7 +168,9 @@ def init_db():
             value TEXT NOT NULL
         );
         '''
-    )
+    if Config.DATABASE_URL:
+        schema = adapt_schema_for_postgres(schema)
+    conn.executescript(schema)
     conn.commit()
     conn.close()
 
@@ -161,6 +201,9 @@ def ensure_admin_account():
     existing = conn.execute('SELECT username FROM admin_users WHERE username = ?', (username,)).fetchone()
     if existing is None:
         if not password:
+            if os.environ.get('VERCEL'):
+                conn.close()
+                raise RuntimeError('Set ADMIN_PASSWORD in the Vercel project environment variables before deploying.')
             password = str(uuid4())[:12]
             setup_path = INSTANCE_FOLDER / 'admin_credentials.txt'
             with open(setup_path, 'w', encoding='utf-8') as fh:
@@ -219,12 +262,12 @@ def get_or_create_customer(name, phone, alt_phone='', location='', notes=''):
         return existing['id']
 
     conn = get_db_connection()
-    cursor = conn.execute(
-        'INSERT INTO customers(name, phone, alt_phone, location, notes) VALUES(?, ?, ?, ?, ?)',
+    row = conn.execute(
+        'INSERT INTO customers(name, phone, alt_phone, location, notes) VALUES(?, ?, ?, ?, ?) RETURNING id',
         (cleaned_name, cleaned_phone, alt_phone, location, notes),
-    )
+    ).fetchone()
     conn.commit()
-    customer_id = cursor.lastrowid
+    customer_id = row['id']
     conn.close()
     return customer_id
 
@@ -241,7 +284,8 @@ def normalize_media_type(filename):
 def save_uploaded_media(project_id, files, category='Other'):
     saved = []
     project_dir = UPLOAD_FOLDER / f'project_{project_id}'
-    project_dir.mkdir(exist_ok=True)
+    if not Config.BLOB_STORAGE_ENABLED:
+        project_dir.mkdir(exist_ok=True)
 
     for file in files:
         if file is None or file.filename == '':
@@ -259,10 +303,22 @@ def save_uploaded_media(project_id, files, category='Other'):
             safe_name = f'{uuid4().hex}{os.path.splitext(file.filename)[1].lower()}'
         safe_name = safe_name.replace(' ', '_')
         unique_name = f'{uuid4().hex}_{safe_name}'
-        dest_dir = project_dir / media_type
-        dest_dir.mkdir(exist_ok=True)
-        dest_path = dest_dir / unique_name
-        file.save(dest_path)
+        if Config.BLOB_STORAGE_ENABLED:
+            from vercel.blob import sync as blob
+
+            blob_result = blob.put_blob(
+                f'projects/{project_id}/{media_type}/{unique_name}',
+                file.read(),
+                access='public',
+                content_type=mimetypes.guess_type(file.filename)[0] or 'application/octet-stream',
+            )
+            stored_path = blob_result.url
+        else:
+            dest_dir = project_dir / media_type
+            dest_dir.mkdir(exist_ok=True)
+            dest_path = dest_dir / unique_name
+            file.save(dest_path)
+            stored_path = str(dest_path.relative_to(BASE_DIR)).replace('\\', '/')
 
         conn = get_db_connection()
         conn.execute(
@@ -273,19 +329,20 @@ def save_uploaded_media(project_id, files, category='Other'):
                 category,
                 unique_name,
                 file.filename,
-                str(dest_path.relative_to(BASE_DIR)).replace('\\', '/'),
+                stored_path,
             ),
         )
         conn.commit()
         conn.close()
-        saved.append(dest_path)
+        saved.append(stored_path)
 
     return saved
 
 
 def save_showcase_photos(files, work_category, category='Reference'):
     showcase_dir = UPLOAD_FOLDER / 'showcase' / 'image'
-    showcase_dir.mkdir(parents=True, exist_ok=True)
+    if not Config.BLOB_STORAGE_ENABLED:
+        showcase_dir.mkdir(parents=True, exist_ok=True)
     saved = []
 
     for file in files:
@@ -299,8 +356,20 @@ def save_showcase_photos(files, work_category, category='Reference'):
         if not safe_name:
             safe_name = f'{uuid4().hex}{os.path.splitext(file.filename)[1].lower()}'
         unique_name = f'{uuid4().hex}_{safe_name.replace(" ", "_")}'
-        dest_path = showcase_dir / unique_name
-        file.save(dest_path)
+        if Config.BLOB_STORAGE_ENABLED:
+            from vercel.blob import sync as blob
+
+            blob_result = blob.put_blob(
+                f'showcase/image/{unique_name}',
+                file.read(),
+                access='public',
+                content_type=mimetypes.guess_type(file.filename)[0] or 'application/octet-stream',
+            )
+            stored_path = blob_result.url
+        else:
+            dest_path = showcase_dir / unique_name
+            file.save(dest_path)
+            stored_path = str(dest_path.relative_to(BASE_DIR)).replace('\\', '/')
 
         conn = get_db_connection()
         conn.execute(
@@ -311,14 +380,29 @@ def save_showcase_photos(files, work_category, category='Reference'):
                 category,
                 unique_name,
                 file.filename,
-                str(dest_path.relative_to(BASE_DIR)).replace('\\', '/'),
+                stored_path,
             ),
         )
         conn.commit()
         conn.close()
-        saved.append(dest_path)
+        saved.append(stored_path)
 
     return saved
+
+
+def delete_stored_file(file_path):
+    parsed = urlparse(file_path)
+    if parsed.scheme:
+        if parsed.scheme == 'https' and parsed.hostname and parsed.hostname.endswith('.public.blob.vercel-storage.com'):
+            from vercel.blob import sync as blob
+
+            blob.delete_blob(file_path)
+            return
+        raise ValueError('Cannot delete media from an unrecognized storage URL.')
+
+    local_path = BASE_DIR / file_path
+    if local_path.exists():
+        local_path.unlink()
 
 
 def get_project_by_id(project_id):
@@ -375,6 +459,18 @@ def validate_csrf_form():
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    if os.environ.get('VERCEL'):
+        required_environment = {
+            'DATABASE_URL': Config.DATABASE_URL,
+            'Vercel Blob credentials': Config.BLOB_STORAGE_ENABLED,
+            'FLASK_SECRET_KEY': os.environ.get('FLASK_SECRET_KEY'),
+            'ADMIN_PASSWORD': os.environ.get('ADMIN_PASSWORD'),
+        }
+        missing = [name for name, value in required_environment.items() if not value]
+        if missing:
+            raise RuntimeError(
+                'Missing required Vercel environment variables: ' + ', '.join(missing)
+            )
     init_db()
     ensure_admin_account()
     app.jinja_env.globals['category_choices'] = CATEGORY_CHOICES
@@ -421,6 +517,11 @@ def create_app():
 
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
+        if filename.startswith('https://'):
+            parsed = urlparse(filename)
+            if parsed.hostname and parsed.hostname.endswith('.public.blob.vercel-storage.com'):
+                return redirect(filename)
+            abort(404)
         return send_from_directory(UPLOAD_FOLDER, filename)
 
     @app.route('/')
@@ -673,16 +774,16 @@ def create_app():
                 advance = float(advance_amount) if advance_amount else 0.0
                 balance = estimated - advance
                 conn = get_db_connection()
-                cursor = conn.execute(
+                project_row = conn.execute(
                     '''
                     INSERT INTO projects(
                         project_ref, title, customer_id, category, location, description, start_date,
                         expected_completion, status, estimated_price, advance_amount, balance_amount, internal_notes
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                     ''',
                     (project_ref, title, customer_id, category, location, description, start_date, expected_completion, status, estimated, advance, balance, internal_notes),
-                )
-                project_id = cursor.lastrowid
+                ).fetchone()
+                project_id = project_row['id']
                 conn.commit()
                 conn.close()
 
@@ -861,12 +962,7 @@ def create_app():
         conn.commit()
         conn.close()
         for row in media_rows:
-            try:
-                file_path = BASE_DIR / row['file_path']
-                if file_path.exists():
-                    file_path.unlink()
-            except Exception:
-                pass
+            delete_stored_file(row['file_path'])
         flash(f'Project {project["project_ref"] if project else ""} deleted successfully.', 'success')
         return redirect(url_for('projects'))
 
@@ -897,9 +993,7 @@ def create_app():
         row = conn.execute('SELECT * FROM project_media WHERE id = ?', (media_id,)).fetchone()
         if row:
             project_id = row['project_id']
-            file_path = BASE_DIR / row['file_path']
-            if file_path.exists():
-                file_path.unlink()
+            delete_stored_file(row['file_path'])
             conn.execute('DELETE FROM project_media WHERE id = ?', (media_id,))
             conn.commit()
             conn.close()
@@ -920,9 +1014,7 @@ def create_app():
             flash('Portfolio photo not found.', 'danger')
             return redirect(url_for('gallery'))
 
-        file_path = BASE_DIR / row['file_path']
-        if file_path.exists():
-            file_path.unlink()
+        delete_stored_file(row['file_path'])
         conn.execute('DELETE FROM showcase_media WHERE id = ?', (media_id,))
         conn.commit()
         conn.close()
@@ -1016,6 +1108,13 @@ def create_app():
     @login_required
     def backup_database():
         validate_csrf_form()
+        if Config.DATABASE_URL or Config.BLOB_STORAGE_ENABLED:
+            flash(
+                'This deployment stores data in hosted services. Use your database and Vercel Blob provider dashboards to manage backups.',
+                'warning',
+            )
+            return redirect(url_for('settings'))
+
         backup_dir = INSTANCE_FOLDER / 'backups'
         backup_dir.mkdir(exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

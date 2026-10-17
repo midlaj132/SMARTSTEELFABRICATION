@@ -80,6 +80,41 @@ persistent disk for the SQLite database and uploaded media. Configure
 `FLASK_SECRET_KEY` to a long random secret, and set `ADMIN_USERNAME` and
 `ADMIN_PASSWORD` before the first start.
 
+## Deploy to Vercel
+
+The root `app.py` exposes the Flask `app` object, so Vercel can detect it as a
+Python application when importing this GitHub repository. Vercel Functions
+cannot retain local SQLite files or uploaded files between executions. For
+Vercel, this app uses hosted PostgreSQL and Vercel Blob instead; set up both
+before the first deployment:
+
+1. In Vercel, import `midlaj132/SMARTSTEELFABRICATION` and leave the project
+   root at `/`. Vercel detects Flask from `requirements.txt`; no custom build
+   command or output directory is needed.
+2. Create a PostgreSQL database using a Vercel Marketplace provider such as
+   Neon. Add its pooled connection string to the Vercel project environment as
+   `DATABASE_URL` (or `POSTGRES_URL`).
+3. Create a **public** Vercel Blob store and connect it to this project. Add its
+   read-write token as `BLOB_READ_WRITE_TOKEN`. Uploaded photos and videos are
+   public portfolio media.
+4. In **Settings → Environment Variables**, add these for Production (and
+   Preview if needed):
+   - `FLASK_SECRET_KEY` — a long random secret used to sign owner sessions.
+   - `ADMIN_USERNAME` — `SMARTSTEEL`.
+   - `ADMIN_PASSWORD` — the owner’s password.
+   - `DATABASE_URL` — the PostgreSQL connection string from the provider.
+   - `BLOB_READ_WRITE_TOKEN` — the token for the connected Blob store.
+5. Redeploy. The app creates its tables in PostgreSQL on startup. Do not add
+   database files, uploads, or secret values to GitHub.
+
+Vercel Functions accept request bodies up to 4.5 MB. To keep uploads below that
+platform limit, this app limits uploads to 4 MB total on Vercel (the limit can
+be lowered with `MAX_UPLOAD_SIZE_MB`; Vercel values above 4 are capped).
+
+Set these environment variables in Vercel’s dashboard, not in committed files.
+Changing the local SQLite database does not migrate its contents to PostgreSQL;
+the current repository intentionally excludes that local database.
+
 ## Default admin setup
 
 On the first run, the application creates a secure admin account automatically. The credentials are saved in `instance/admin_credentials.txt` and printed in the console. You can also set your own password with the environment variables `ADMIN_USERNAME` and `ADMIN_PASSWORD` before starting the app.
