@@ -10,6 +10,7 @@ A Flask website and private admin system for SMARTSTEELPAZHAYANNUR welding and f
 - Category-based project views
 - Multi-file media uploads for images and videos
 - Gallery with filters and previews
+- Customer feedback submissions with optional photos and admin approval
 - Public homepage with featured staircase photo
 - SQLite database persistence
 - Admin login with password hashing
@@ -52,6 +53,9 @@ gallery category. Create a project first if you have not added one yet.
 Customers do not need to register or sign in; they can browse the public
 projects and gallery. The
 homepage uses the latest uploaded project photo as its featured project image.
+Customers can submit feedback and an optional photo from the **Customer
+Feedback** page. Submissions and photos remain unpublished until an
+administrator approves them from the admin navigation.
 To add portfolio inspiration or preference photos without creating a project
 or entering any customer details, choose **Owner: Add Photos (No Customer
 Details)**. Select the work category and photos; they appear in the public

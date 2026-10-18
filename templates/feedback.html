@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Customer Feedback | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card p-4">
+            <h2 class="h4 mb-2">Share Your Feedback</h2>
+            <p class="text-muted">Tell us about your experience. Feedback and photos are reviewed before publication.</p>
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label" for="customer-name">Your name</label>
+                    <input class="form-control" id="customer-name" name="customer_name" maxlength="100" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="feedback-message">Your feedback</label>
+                    <textarea class="form-control" id="feedback-message" name="message" rows="5" maxlength="2000" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="feedback-photo">Photo (optional)</label>
+                    <input class="form-control" id="feedback-photo" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                    <div class="form-text">JPG, JPEG, PNG, or WEBP. Your photo will stay private until approved.</div>
+                </div>
+                <button class="btn btn-primary" type="submit">Submit Feedback</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <h2 class="h4 mb-3">Customer Experiences</h2>
+        {% if feedback %}
+        <div class="d-grid gap-3">
+            {% for item in feedback %}
+            <article class="card p-4">
+                <p class="mb-3">{{ item.message }}</p>
+                {% if item.original_name %}
+                <a href="{{ url_for('feedback_photo', feedback_id=item.id) }}" target="_blank" rel="noopener">
+                    <img class="img-fluid rounded mb-3" src="{{ url_for('feedback_photo', feedback_id=item.id) }}" alt="Photo shared by {{ item.customer_name }}" loading="lazy">
+                </a>
+                {% endif %}
+                <div class="small text-muted">— {{ item.customer_name }}</div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h5>No published feedback yet.</h5>
+            <p>Be the first to share your experience.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

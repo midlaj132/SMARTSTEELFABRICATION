@@ -5,6 +5,7 @@ import traceback
 import zipfile
 from datetime import datetime
 from functools import wraps
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 from urllib.parse import urlparse
@@ -85,6 +86,7 @@ def adapt_schema_for_postgres(schema):
         schema.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY')
         .replace('INTEGER', 'BIGINT')
         .replace(' REAL', ' DOUBLE PRECISION')
+        .replace(' BLOB', ' BYTEA')
         .replace(' COLLATE NOCASE', '')
         .replace(
             "TEXT NOT NULL DEFAULT (datetime('now'))",
@@ -147,6 +149,18 @@ def init_db():
             file_name TEXT NOT NULL,
             original_name TEXT NOT NULL,
             file_path TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS customer_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            original_name TEXT,
+            file_name TEXT,
+            file_data BLOB,
+            file_path TEXT,
+            approved INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -284,6 +298,21 @@ def normalize_media_type(filename):
     return None
 
 
+def is_supported_image_data(file_data, filename):
+    extension = os.path.splitext(filename)[1].lower()
+    signatures = {
+        '.jpg': file_data.startswith(b'\xff\xd8\xff'),
+        '.jpeg': file_data.startswith(b'\xff\xd8\xff'),
+        '.png': file_data.startswith(b'\x89PNG\r\n\x1a\n'),
+        '.webp': (
+            len(file_data) >= 12
+            and file_data.startswith(b'RIFF')
+            and file_data[8:12] == b'WEBP'
+        ),
+    }
+    return signatures.get(extension, False)
+
+
 def save_uploaded_media(project_id, files, category='Other'):
     saved = []
     project_dir = UPLOAD_FOLDER / f'project_{project_id}'
@@ -393,6 +422,34 @@ def save_showcase_photos(files, work_category, category='Reference'):
     return saved
 
 
+def save_feedback_photo(file_data, original_name):
+    safe_name = secure_filename(original_name)
+    if not safe_name:
+        safe_name = f'{uuid4().hex}{os.path.splitext(original_name)[1].lower()}'
+    unique_name = f'{uuid4().hex}_{safe_name.replace(" ", "_")}'
+    content_type = mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
+
+    if Config.BLOB_STORAGE_ENABLED:
+        from vercel.blob import sync as blob
+
+        blob_result = blob.put_blob(
+            f'feedback/{unique_name}',
+            file_data,
+            access='public',
+            content_type=content_type,
+        )
+        stored_path = blob_result.url
+    else:
+        feedback_dir = UPLOAD_FOLDER / 'feedback'
+        feedback_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = feedback_dir / unique_name
+        with open(dest_path, 'wb') as feedback_file:
+            feedback_file.write(file_data)
+        stored_path = str(dest_path.relative_to(BASE_DIR)).replace('\\', '/')
+
+    return unique_name, stored_path
+
+
 def delete_stored_file(file_path):
     parsed = urlparse(file_path)
     if parsed.scheme:
@@ -455,7 +512,7 @@ def get_csrf_token():
 
 def validate_csrf_form():
     token = request.form.get('csrf_token')
-    if token != session.get('csrf_token'):
+    if not token or token != session.get('csrf_token'):
         abort(400)
 
 
@@ -504,9 +561,13 @@ def create_app():
     @app.before_request
     def ensure_csrf_token():
         if request.method == 'POST' and request.endpoint not in ('login', 'backup_database', 'delete_project', 'delete_customer', 'delete_media'):
+            if request.endpoint == 'submit_feedback':
+                if not session.get('csrf_token') or request.form.get('csrf_token') != session.get('csrf_token'):
+                    abort(400)
+                return None
             if 'logged_in' not in session:
                 return redirect(url_for('login', next=request.path))
-            if request.form.get('csrf_token') != session.get('csrf_token'):
+            if not session.get('csrf_token') or request.form.get('csrf_token') != session.get('csrf_token'):
                 abort(400)
 
     @app.route('/login')
@@ -545,6 +606,94 @@ def create_app():
                 return redirect(filename)
             abort(404)
         return send_from_directory(UPLOAD_FOLDER, filename)
+
+    @app.route('/feedback', methods=['GET', 'POST'])
+    def submit_feedback():
+        if request.method == 'POST':
+            customer_name = request.form.get('customer_name', '').strip()
+            message = request.form.get('message', '').strip()
+            photo = request.files.get('photo')
+
+            if not customer_name or len(customer_name) > 100:
+                flash('Enter your name (up to 100 characters).', 'danger')
+            elif not message or len(message) > 2000:
+                flash('Enter feedback (up to 2,000 characters).', 'danger')
+            elif photo and photo.filename and normalize_media_type(photo.filename) != 'image':
+                flash('Feedback photos must be JPG, JPEG, PNG, or WEBP.', 'danger')
+            else:
+                photo_data = photo.read() if photo and photo.filename else None
+                if photo_data and not is_supported_image_data(photo_data, photo.filename):
+                    flash('The uploaded file does not match a supported image format.', 'danger')
+                else:
+                    conn = get_db_connection()
+                    conn.execute(
+                        '''
+                        INSERT INTO customer_feedback(customer_name, message, original_name, file_name, file_data)
+                        VALUES(?, ?, ?, ?, ?)
+                        ''',
+                        (
+                            customer_name,
+                            message,
+                            photo.filename if photo_data else None,
+                            secure_filename(photo.filename) if photo_data else None,
+                            photo_data,
+                        ),
+                    )
+                    conn.commit()
+                    conn.close()
+                    flash('Thank you for your feedback. It will appear after review.', 'success')
+                    return redirect(url_for('submit_feedback'))
+
+        conn = get_db_connection()
+        feedback = conn.execute(
+            '''
+            SELECT id, customer_name, message, original_name, created_at
+            FROM customer_feedback
+            WHERE approved = 1
+            ORDER BY created_at DESC
+            '''
+        ).fetchall()
+        conn.close()
+        return render_template('feedback.html', feedback=feedback)
+
+    @app.route('/feedback/<int:feedback_id>/photo')
+    def feedback_photo(feedback_id):
+        conn = get_db_connection()
+        item = conn.execute(
+            '''
+            SELECT original_name, file_data, file_path, approved
+            FROM customer_feedback
+            WHERE id = ?
+            ''',
+            (feedback_id,),
+        ).fetchone()
+        conn.close()
+        if item is None or not item['original_name']:
+            abort(404)
+        if not item['approved'] and 'logged_in' not in session:
+            abort(404)
+
+        if item['file_path']:
+            if item['file_path'].startswith('https://'):
+                parsed = urlparse(item['file_path'])
+                if parsed.hostname and parsed.hostname.endswith('.public.blob.vercel-storage.com'):
+                    return redirect(item['file_path'])
+                abort(404)
+            response = send_from_directory(
+                UPLOAD_FOLDER,
+                item['file_path'].removeprefix('uploads/'),
+                mimetype=mimetypes.guess_type(item['original_name'])[0],
+            )
+        elif item['file_data'] is not None:
+            response = send_file(
+                BytesIO(item['file_data']),
+                mimetype=mimetypes.guess_type(item['original_name'])[0] or 'application/octet-stream',
+                download_name=secure_filename(item['original_name']),
+            )
+        else:
+            abort(404)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @app.route('/healthz')
     def health_check():
@@ -1138,6 +1287,74 @@ def create_app():
             elif 'backup' in request.form:
                 return backup_database()
         return render_template('settings.html')
+
+    @app.route('/admin/feedback')
+    @login_required
+    def admin_feedback():
+        conn = get_db_connection()
+        feedback = conn.execute(
+            '''
+            SELECT id, customer_name, message, original_name, approved, created_at
+            FROM customer_feedback
+            ORDER BY approved ASC, created_at DESC
+            '''
+        ).fetchall()
+        conn.close()
+        return render_template('admin_feedback.html', feedback=feedback)
+
+    @app.route('/admin/feedback/<int:feedback_id>/approve', methods=['POST'])
+    @login_required
+    def approve_feedback(feedback_id):
+        validate_csrf_form()
+        conn = get_db_connection()
+        item = conn.execute(
+            'SELECT file_data, original_name, file_path FROM customer_feedback WHERE id = ?',
+            (feedback_id,),
+        ).fetchone()
+        if item is None:
+            conn.close()
+            abort(404)
+
+        file_name = item['file_path']
+        if item['file_data'] is not None:
+            stored_name, file_name = save_feedback_photo(item['file_data'], item['original_name'])
+            conn.execute(
+                '''
+                UPDATE customer_feedback
+                SET approved = 1, file_name = ?, file_path = ?, file_data = NULL
+                WHERE id = ?
+                ''',
+                (stored_name, file_name, feedback_id),
+            )
+        else:
+            conn.execute(
+                'UPDATE customer_feedback SET approved = 1 WHERE id = ?',
+                (feedback_id,),
+            )
+        conn.commit()
+        conn.close()
+        flash('Feedback approved and published.', 'success')
+        return redirect(url_for('admin_feedback'))
+
+    @app.route('/admin/feedback/<int:feedback_id>/delete', methods=['POST'])
+    @login_required
+    def delete_feedback(feedback_id):
+        validate_csrf_form()
+        conn = get_db_connection()
+        item = conn.execute(
+            'SELECT file_path FROM customer_feedback WHERE id = ?',
+            (feedback_id,),
+        ).fetchone()
+        if item is None:
+            conn.close()
+            abort(404)
+        conn.execute('DELETE FROM customer_feedback WHERE id = ?', (feedback_id,))
+        conn.commit()
+        conn.close()
+        if item['file_path']:
+            delete_stored_file(item['file_path'])
+        flash('Feedback deleted.', 'success')
+        return redirect(url_for('admin_feedback'))
 
     @app.route('/backup-database', methods=['POST'])
     @login_required

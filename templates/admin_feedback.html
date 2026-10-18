@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Customer Feedback | SMARTSTEELPAZHAYANNUR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Customer Feedback</h2>
+        <p class="text-muted mb-0">Review submissions before they appear publicly.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('submit_feedback') }}">View public page</a>
+</div>
+
+{% if feedback %}
+<div class="d-grid gap-3">
+    {% for item in feedback %}
+    <article class="card p-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <h3 class="h5 mb-1">{{ item.customer_name }}</h3>
+                <div class="small text-muted">{{ item.created_at }}</div>
+            </div>
+            {% if item.approved %}
+            <span class="badge bg-success">Published</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">Awaiting review</span>
+            {% endif %}
+        </div>
+        <p class="mb-3">{{ item.message }}</p>
+        {% if item.original_name %}
+        <a href="{{ url_for('feedback_photo', feedback_id=item.id) }}" target="_blank" rel="noopener" class="mb-3">
+            <img class="img-fluid rounded" style="max-width: 320px; max-height: 240px; object-fit: cover" src="{{ url_for('feedback_photo', feedback_id=item.id) }}" alt="Photo submitted by {{ item.customer_name }}">
+        </a>
+        {% endif %}
+        <div class="d-flex gap-2">
+            {% if not item.approved %}
+            <form method="post" action="{{ url_for('approve_feedback', feedback_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-success" type="submit">Approve and publish</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('delete_feedback', feedback_id=item.id) }}" onsubmit="return confirm('Delete this feedback permanently?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+            </form>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <h5>No feedback submissions yet.</h5>
+    <p>Customer submissions will appear here for review.</p>
+</div>
+{% endif %}
+{% endblock %}

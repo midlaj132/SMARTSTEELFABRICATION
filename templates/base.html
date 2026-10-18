@@ -24,6 +24,7 @@
                     <a class="nav-link {% if request.endpoint == 'category_page' and request.view_args.category_slug|replace('-', ' ') == category|lower %}active{% endif %}" href="{{ url_for('category_page', category_slug=category|lower|replace(' ', '-')) }}"><i class="bi bi-diagram-3 me-2"></i>{{ category }}</a>
                     {% endfor %}
                     <a class="nav-link {% if request.endpoint == 'gallery' %}active{% endif %}" href="{{ url_for('gallery') }}"><i class="bi bi-images me-2"></i>Gallery</a>
+                    <a class="nav-link {% if request.endpoint == 'admin_feedback' %}active{% endif %}" href="{{ url_for('admin_feedback') }}"><i class="bi bi-chat-square-text me-2"></i>Customer Feedback</a>
                     <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}"><i class="bi bi-gear me-2"></i>Settings</a>
                 </nav>
                 <div class="mt-5 pt-4 border-top border-secondary-subtle">
@@ -50,6 +51,7 @@
                     <a class="nav-link" href="{{ url_for('dashboard') }}">Home</a>
                     <a class="nav-link" href="{{ url_for('projects') }}">Our Work</a>
                     <a class="nav-link" href="{{ url_for('gallery') }}">Gallery</a>
+                    <a class="nav-link" href="{{ url_for('submit_feedback') }}">Customer Feedback</a>
                     <a class="nav-link text-warning fw-semibold" href="{{ url_for('upload_showcase') }}"><i class="bi bi-images me-1"></i>Owner: Add Photos (No Customer Details)</a>
                     <div class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Work Categories</a>
